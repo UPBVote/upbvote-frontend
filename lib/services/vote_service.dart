@@ -2,8 +2,10 @@ import '../core/api_client.dart';
 import '../models/vote_models.dart';
 
 class VoteService {
-  static Future<List<EvaluationCriterion>> getPublicCriteria() => getCriteria('PUBLIC');
-  static Future<List<EvaluationCriterion>> getRubricCriteria() => getCriteria('RUBRIC');
+  static Future<List<EvaluationCriterion>> getPublicCriteria() =>
+      getCriteria('PUBLIC');
+  static Future<List<EvaluationCriterion>> getRubricCriteria() =>
+      getCriteria('RUBRIC');
 
   /// GET /evaluation-criteria/?type=PUBLIC|RUBRIC
   static Future<List<EvaluationCriterion>> getCriteria(String type) async {
@@ -31,18 +33,20 @@ class VoteService {
 
   /// POST /projects/{id}/vote/
   static Future<MyVote> submitVote(
-      String projectId, List<VoteDetail> details) async {
-    final data = await ApiClient.post(
-      '/projects/$projectId/vote/',
-      {'details': details.map((d) => d.toJson()).toList()},
-      requiresAuth: true,
-    );
+    String projectId,
+    List<VoteDetail> details,
+  ) async {
+    final data = await ApiClient.post('/projects/$projectId/vote/', {
+      'details': details.map((d) => d.toJson()).toList(),
+    }, requiresAuth: true);
     return MyVote.fromJson(data as Map<String, dynamic>);
   }
 
   /// PATCH /projects/{id}/vote/me/
   static Future<MyVote> editVote(
-      String projectId, List<VoteDetail> details) async {
+    String projectId,
+    List<VoteDetail> details,
+  ) async {
     final data = await ApiClient.patch(
       '/projects/$projectId/vote/me/',
       body: {'details': details.map((d) => d.toJson()).toList()},
@@ -63,24 +67,56 @@ class VoteService {
     }
   }
 
-  /// POST /projects/{id}/jury-vote/
+  /// POST /projects/{id}/jury-vote/ — comment es requerido por el backend
   static Future<MyVote> submitJuryVote(
-      String projectId, List<VoteDetail> details) async {
-    final data = await ApiClient.post(
-      '/projects/$projectId/jury-vote/',
-      {'details': details.map((d) => d.toJson()).toList()},
-      requiresAuth: true,
+    String projectId,
+    List<VoteDetail> details, {
+    required String comment,
+  }) async {
+    final data = await ApiClient.post('/projects/$projectId/jury-vote/', {
+      'details': details.map((d) => d.toJson()).toList(),
+      'comment': comment,
+    }, requiresAuth: true);
+    return MyVote.fromJson(data as Map<String, dynamic>);
+  }
+
+  /// PATCH /projects/{id}/jury-vote/me/ — comment es requerido por el backend
+  static Future<MyVote> editJuryVote(
+    String projectId,
+    List<VoteDetail> details, {
+    required String comment,
+  }) async {
+    final data = await ApiClient.patch(
+      '/projects/$projectId/jury-vote/me/',
+      body: {
+        'details': details.map((d) => d.toJson()).toList(),
+        'comment': comment,
+      },
     );
     return MyVote.fromJson(data as Map<String, dynamic>);
   }
 
-  /// PATCH /projects/{id}/jury-vote/me/
-  static Future<MyVote> editJuryVote(
-      String projectId, List<VoteDetail> details) async {
-    final data = await ApiClient.patch(
-      '/projects/$projectId/jury-vote/me/',
-      body: {'details': details.map((d) => d.toJson()).toList()},
+  /// GET /projects/{id}/jury-feedback/ — visible para Expositor (nota + comentarios del jurado)
+  static Future<JuryFeedback> getJuryFeedback(String projectId) async {
+    final data = await ApiClient.get('/projects/$projectId/jury-feedback/');
+    final feedback = JuryFeedback.fromJson(data);
+
+    final resolvedEvals = await Future.wait(
+      feedback.evaluations.map((eval) async {
+        if (eval.userId.isEmpty) return eval;
+        try {
+          final userData = await ApiClient.get('/users/${eval.userId}');
+          final name = (userData['userName'] ?? 'Jurado').toString();
+          return eval.copyWith(juryName: name);
+        } catch (_) {
+          return eval;
+        }
+      }),
     );
-    return MyVote.fromJson(data as Map<String, dynamic>);
+
+    return JuryFeedback(
+      totalAverage: feedback.totalAverage,
+      evaluations: resolvedEvals,
+    );
   }
 }

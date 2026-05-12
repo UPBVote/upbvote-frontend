@@ -47,6 +47,7 @@ class AuthService {
 
     AppState.token = response.token;
     AppState.userId = response.userId;
+    AppState.profileId = response.profileId;
     AppState.email = response.email;
     AppState.userName = response.userName;
     AppState.role = _mapRole(response.role);
@@ -65,6 +66,8 @@ class AuthService {
         return 'Jurado';
       case 'secretary':
         return 'Secretario';
+      case 'admin':
+        return 'Admin';
       default:
         return 'Votante';
     }

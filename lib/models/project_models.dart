@@ -81,6 +81,7 @@ class ProjectSummary {
   final ProjectState? state;
   final String publicationDate;
   final double averagePublicScore;
+  final String? mainImage;
 
   ProjectSummary({
     required this.id,
@@ -89,7 +90,10 @@ class ProjectSummary {
     this.state,
     required this.publicationDate,
     required this.averagePublicScore,
+    this.mainImage,
   });
+
+  bool get isActive => (state?.name ?? '').toUpperCase() == 'ACTIVE';
 
   factory ProjectSummary.fromJson(Map<String, dynamic> json) => ProjectSummary(
         id: (json['id'] ?? '').toString(),
@@ -103,6 +107,7 @@ class ProjectSummary {
         publicationDate: (json['publicationDate'] ?? '').toString(),
         averagePublicScore:
             double.tryParse(json['averagePublicScore']?.toString() ?? '0') ?? 0.0,
+        mainImage: json['mainImage']?.toString(),
       );
 }
 

@@ -26,11 +26,18 @@ class _VoteScreenState extends State<VoteScreen> {
   bool _isLoading = true;
   bool _isSaving = false;
   String? _errorMessage;
+  final _commentCtrl = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _commentCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -60,8 +67,11 @@ class _VoteScreenState extends State<VoteScreen> {
         _existingVote = existing;
         _scores = scores;
       });
+      if (existing?.comment != null && existing!.comment!.isNotEmpty) {
+        _commentCtrl.text = existing.comment!;
+      }
     } on ApiException catch (e) {
-      setState(() => _errorMessage = e.message);
+      setState(() => _errorMessage = _translateError(e.message));
     } catch (_) {
       setState(() => _errorMessage = 'Error de conexión.');
     } finally {
@@ -69,7 +79,46 @@ class _VoteScreenState extends State<VoteScreen> {
     }
   }
 
+  String _translateError(String msg) {
+    final m = msg.toLowerCase();
+    if (m.contains('jury voting schedule is not active') || m.contains('jury vote schedule')) {
+      return 'El período de evaluación del jurado no está habilitado aún para este evento.';
+    }
+    if (m.contains('upload schedule is not active') || m.contains('upload schedule')) {
+      return 'El período de subida de proyectos no está habilitado.';
+    }
+    if (m.contains('schedule is not active') || m.contains('not active for voting')) {
+      return 'La votación no está habilitada en este momento.';
+    }
+    if (m.contains('already voted') || m.contains('already exists') || m.contains('unique')) {
+      return 'Ya registraste tu voto para este proyecto.';
+    }
+    if (m.contains('not active') || m.contains('inactive')) {
+      return 'Este proyecto no está activo.';
+    }
+    if (m.contains('not a jury') || m.contains('not jury') || m.contains('permission') || m.contains('forbidden')) {
+      return 'No tienes permisos para realizar esta acción.';
+    }
+    if (m.contains('not found')) return 'Recurso no encontrado.';
+    if (m.contains('unauthorized') || m.contains('authentication')) {
+      return 'Sesión expirada. Por favor vuelve a iniciar sesión.';
+    }
+    if (m.contains('comment') && m.contains('required')) {
+      return 'El comentario es obligatorio para la evaluación del jurado.';
+    }
+    return msg;
+  }
+
   Future<void> _submit() async {
+    if (widget.isJury && _commentCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('El comentario es obligatorio para la evaluación del jurado.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
     setState(() => _isSaving = true);
     final details = _scores.entries
         .map((e) => VoteDetail(criterionId: e.key, score: e.value))
@@ -77,11 +126,13 @@ class _VoteScreenState extends State<VoteScreen> {
     try {
       if (_existingVote != null) {
         await (widget.isJury
-            ? VoteService.editJuryVote(widget.projectId, details)
+            ? VoteService.editJuryVote(widget.projectId, details,
+                comment: _commentCtrl.text.trim())
             : VoteService.editVote(widget.projectId, details));
       } else {
         await (widget.isJury
-            ? VoteService.submitJuryVote(widget.projectId, details)
+            ? VoteService.submitJuryVote(widget.projectId, details,
+                comment: _commentCtrl.text.trim())
             : VoteService.submitVote(widget.projectId, details));
       }
       if (mounted) {
@@ -110,7 +161,7 @@ class _VoteScreenState extends State<VoteScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: widget.isJury ? const Color(0xFF263238) : const Color(0xFFB71C1C),
+        backgroundColor: widget.isJury ? const Color(0xFF263238) : const Color(0xFFC2185B),
         iconTheme: const IconThemeData(color: Colors.white),
         title: Text(
           widget.projectTitle,
@@ -119,7 +170,7 @@ class _VoteScreenState extends State<VoteScreen> {
         ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFFB71C1C)))
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFFC2185B)))
           : _errorMessage != null
               ? _buildError()
               : _buildForm(),
@@ -137,7 +188,7 @@ class _VoteScreenState extends State<VoteScreen> {
           const SizedBox(height: 16),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFB71C1C), foregroundColor: Colors.white),
+                backgroundColor: const Color(0xFFC2185B), foregroundColor: Colors.white),
             onPressed: _load,
             child: const Text('Reintentar'),
           ),
@@ -160,13 +211,13 @@ class _VoteScreenState extends State<VoteScreen> {
         Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-          color: (widget.isJury ? const Color(0xFF263238) : const Color(0xFFB71C1C))
+          color: (widget.isJury ? const Color(0xFF263238) : const Color(0xFFC2185B))
               .withValues(alpha: 0.07),
           child: Row(
             children: [
               Icon(
                 widget.isJury ? Icons.rate_review : Icons.star,
-                color: widget.isJury ? const Color(0xFF263238) : const Color(0xFFB71C1C),
+                color: widget.isJury ? const Color(0xFF263238) : const Color(0xFFC2185B),
                 size: 20,
               ),
               const SizedBox(width: 8),
@@ -181,7 +232,7 @@ class _VoteScreenState extends State<VoteScreen> {
                           : 'Califica cada criterio del 1 al 5'),
                   style: TextStyle(
                     fontSize: 13,
-                    color: widget.isJury ? const Color(0xFF263238) : const Color(0xFFB71C1C),
+                    color: widget.isJury ? const Color(0xFF263238) : const Color(0xFFC2185B),
                   ),
                 ),
               ),
@@ -190,12 +241,13 @@ class _VoteScreenState extends State<VoteScreen> {
         ),
         Expanded(
           child: ListView.separated(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.fromLTRB(16, 16, 16, widget.isJury ? 0 : 16),
             itemCount: _criteria.length,
             separatorBuilder: (_, _) => const SizedBox(height: 4),
             itemBuilder: (_, i) => _buildCriterionCard(_criteria[i]),
           ),
         ),
+        if (widget.isJury) _buildCommentField(),
         _buildSubmitButton(),
       ],
     );
@@ -207,7 +259,7 @@ class _VoteScreenState extends State<VoteScreen> {
     final starValue = range > 0
         ? ((score - criterion.minScore) / range * 4 + 1).clamp(1.0, 5.0)
         : 1.0;
-    final accentColor = widget.isJury ? const Color(0xFF263238) : const Color(0xFFB71C1C);
+    final accentColor = widget.isJury ? const Color(0xFF263238) : const Color(0xFFC2185B);
 
     return Card(
       elevation: 2,
@@ -313,32 +365,99 @@ class _VoteScreenState extends State<VoteScreen> {
     );
   }
 
+  Widget _buildCommentField() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Comentario privado',
+            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Solo visible para el expositor y su grupo.',
+            style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _commentCtrl,
+            maxLines: 3,
+            decoration: InputDecoration(
+              hintText: 'Escribe tu retroalimentación aquí (obligatorio)...',
+              filled: true,
+              fillColor: Colors.grey[100],
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFF263238), width: 1.5),
+              ),
+              contentPadding: const EdgeInsets.all(14),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSubmitButton() {
+    final colors = widget.isJury
+        ? [const Color(0xFF263238), const Color(0xFF455A64)]
+        : [const Color(0xFFC2185B), const Color(0xFF7B1FA2)];
+    final label = widget.isJury
+        ? (_existingVote != null ? 'Actualizar evaluación' : 'Enviar evaluación')
+        : (_existingVote != null ? 'Actualizar voto' : 'Enviar voto');
+
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
         child: SizedBox(
           width: double.infinity,
           height: 50,
-          child: ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: widget.isJury ? const Color(0xFF263238) : const Color(0xFFB71C1C),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: _isSaving
+                    ? [Colors.grey[400]!, Colors.grey[500]!]
+                    : colors,
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+              ),
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: _isSaving
+                  ? []
+                  : [
+                      BoxShadow(
+                        color: colors.first.withValues(alpha: 0.38),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
             ),
-            onPressed: _isSaving ? null : _submit,
-            child: _isSaving
-                ? const SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(
-                        color: Colors.white, strokeWidth: 2))
-                : Text(
-                    widget.isJury
-                        ? (_existingVote != null ? 'Actualizar evaluación' : 'Enviar evaluación')
-                        : (_existingVote != null ? 'Actualizar voto' : 'Enviar voto'),
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                disabledBackgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+              ),
+              onPressed: _isSaving ? null : _submit,
+              child: _isSaving
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                          color: Colors.white, strokeWidth: 2))
+                  : Text(label,
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.bold)),
+            ),
           ),
         ),
       ),

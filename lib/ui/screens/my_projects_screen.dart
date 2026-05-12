@@ -41,31 +41,65 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Mi Proyecto', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Mi Proyecto',
+            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+        backgroundColor: Colors.transparent,
+        iconTheme: const IconThemeData(color: Colors.white),
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFFC2185B), Color(0xFF7B1FA2)],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
+          ),
+        ),
         actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            onPressed: _load,
+          ),
         ],
       ),
       body: _buildBody(),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: const Color(0xFFB71C1C),
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add),
-        label: const Text('Nuevo proyecto'),
-        onPressed: () async {
-          final created = await Navigator.push<bool>(
-            context,
-            MaterialPageRoute(builder: (_) => const CreateProjectScreen()),
-          );
-          if (created == true) _load();
-        },
+      floatingActionButton: Container(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFFC2185B), Color(0xFF7B1FA2)],
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFC2185B).withValues(alpha: 0.40),
+              blurRadius: 14,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: FloatingActionButton.extended(
+          backgroundColor: Colors.transparent,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          icon: const Icon(Icons.add),
+          label: const Text('Nuevo proyecto',
+              style: TextStyle(fontWeight: FontWeight.bold)),
+          onPressed: () async {
+            final created = await Navigator.push<bool>(
+              context,
+              MaterialPageRoute(builder: (_) => const CreateProjectScreen()),
+            );
+            if (created == true) _load();
+          },
+        ),
       ),
     );
   }
 
   Widget _buildBody() {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator(color: Color(0xFFB71C1C)));
+      return const Center(child: CircularProgressIndicator(color: Color(0xFFC2185B)));
     }
     if (_errorMessage != null) {
       return Center(
@@ -78,7 +112,7 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
             const SizedBox(height: 16),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFB71C1C), foregroundColor: Colors.white),
+                  backgroundColor: const Color(0xFFC2185B), foregroundColor: Colors.white),
               onPressed: _load,
               child: const Text('Reintentar'),
             ),
@@ -91,19 +125,36 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.folder_open, size: 72, color: Colors.grey[300]),
-            const SizedBox(height: 16),
+            Container(
+              width: 90,
+              height: 90,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [
+                    const Color(0xFFC2185B).withValues(alpha: 0.12),
+                    const Color(0xFF7B1FA2).withValues(alpha: 0.12),
+                  ],
+                ),
+              ),
+              child: const Icon(Icons.folder_open_rounded,
+                  size: 46, color: Color(0xFFC2185B)),
+            ),
+            const SizedBox(height: 20),
             const Text('No tienes proyectos todavía',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+                style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF263238))),
             const SizedBox(height: 8),
             Text('Toca "Nuevo proyecto" para comenzar',
-                style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+                style: TextStyle(fontSize: 13, color: Colors.grey[500])),
           ],
         ),
       );
     }
     return RefreshIndicator(
-      color: const Color(0xFFB71C1C),
+      color: const Color(0xFFC2185B),
       onRefresh: _load,
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
@@ -138,10 +189,10 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
                 width: 46,
                 height: 46,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFB71C1C).withValues(alpha: 0.1),
+                  color: const Color(0xFFC2185B).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.folder, color: Color(0xFFB71C1C), size: 24),
+                child: const Icon(Icons.folder, color: Color(0xFFC2185B), size: 24),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -163,12 +214,12 @@ class _MyProjectsScreenState extends State<MyProjectsScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFB71C1C).withValues(alpha: 0.08),
+                          color: const Color(0xFFC2185B).withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text(p.state!.name,
                             style: const TextStyle(
-                                fontSize: 11, color: Color(0xFFB71C1C))),
+                                fontSize: 11, color: Color(0xFFC2185B))),
                       ),
                     ],
                   ],

@@ -4,8 +4,9 @@ import 'package:http_parser/http_parser.dart';
 import 'app_state.dart';
 
 class ApiClient {
-  // 10.0.2.2 = host machine from Android emulator; change to your PC's LAN IP for a physical device
-  static const String baseUrl = 'http://10.0.2.2:8000/api/v1';
+  static const String baseUrl = 'https://upbvote.bucaramanga.upb.edu.co/api/v1';
+
+  static String fixMediaUrl(String url) => url;
 
   static Map<String, String> _buildHeaders({bool requiresAuth = false}) {
     final headers = {'Content-Type': 'application/json'};
@@ -61,7 +62,9 @@ class ApiClient {
     String path, {
     required Map<String, String> fields,
     required String fileField,
-    required String filePath,
+    String? filePath,
+    List<int>? fileBytes,
+    String? fileName,
     required String mimeType,
   }) async {
     final request = http.MultipartRequest('POST', Uri.parse('$baseUrl$path'));
@@ -69,21 +72,40 @@ class ApiClient {
       request.headers['Authorization'] = 'Bearer ${AppState.token}';
     }
     request.fields.addAll(fields);
-    request.files.add(await http.MultipartFile.fromPath(
-      fileField,
-      filePath,
-      contentType: MediaType.parse(mimeType),
-    ));
+    if (fileBytes != null) {
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          fileField,
+          fileBytes,
+          filename: fileName ?? 'file',
+          contentType: MediaType.parse(mimeType),
+        ),
+      );
+    } else if (filePath != null) {
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          fileField,
+          filePath,
+          contentType: MediaType.parse(mimeType),
+        ),
+      );
+    }
     final streamed = await request.send();
     final response = await http.Response.fromStream(streamed);
     return _handleResponse(response);
   }
 
   static dynamic _handleResponse(http.Response response) {
-    final data = response.body.isNotEmpty ? jsonDecode(response.body) : null;
+    dynamic data;
+    try {
+      data = response.body.isNotEmpty ? jsonDecode(response.body) : null;
+    } catch (_) {
+      data = null;
+    }
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return data;
     }
+    print('STATUS: ${response.statusCode} | BODY: ${response.body}');
     throw ApiException(_extractError(data), response.statusCode);
   }
 

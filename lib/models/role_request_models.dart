@@ -16,24 +16,21 @@ class RoleRequest {
   });
 
   factory RoleRequest.fromJson(Map<String, dynamic> json) {
-    final user = json['user'] is Map
-        ? json['user'] as Map<String, dynamic>
+    final snapshot = json['profileSnapshot'] is Map
+        ? json['profileSnapshot'] as Map<String, dynamic>
         : <String, dynamic>{};
-    final profile = json['profile'] is Map
-        ? json['profile'] as Map<String, dynamic>
-        : <String, dynamic>{};
-    final role = json['requestedRole'] is Map
-        ? json['requestedRole'] as Map<String, dynamic>
-        : <String, dynamic>{};
+    final status = json['status'] is Map
+        ? (json['status'] as Map<String, dynamic>)['name'] ?? ''
+        : (json['status'] ?? '').toString();
     return RoleRequest(
       id: (json['id'] ?? '').toString(),
-      userEmail: (user['email'] ?? json['email'] ?? '').toString(),
+      userEmail: (snapshot['email'] ?? json['email'] ?? '').toString(),
       userName: [
-        (profile['names'] ?? user['names'] ?? '').toString(),
-        (profile['lastNames'] ?? user['lastNames'] ?? '').toString(),
+        (snapshot['names'] ?? '').toString(),
+        (snapshot['lastNames'] ?? '').toString(),
       ].where((s) => s.isNotEmpty).join(' '),
-      requestedRole: (role['name'] ?? role['description'] ?? json['requestedRole'] ?? '').toString(),
-      status: (json['status'] ?? '').toString(),
+      requestedRole: 'Expositor',
+      status: status.toString(),
       createdAt: (json['createdAt'] ?? json['created_at'] ?? '').toString(),
     );
   }

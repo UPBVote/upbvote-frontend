@@ -41,6 +41,24 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
     super.dispose();
   }
 
+  List<ProjectSummary> get _displayedProjects {
+    final copy = List<ProjectSummary>.from(_projects);
+    copy.sort((a, b) {
+      if (_order == 'score_asc') {
+        final diff = a.averagePublicScore - b.averagePublicScore;
+        return diff < 0 ? -1 : diff > 0 ? 1 : 0;
+      } else if (_order == 'date_asc') {
+        return a.publicationDate.compareTo(b.publicationDate);
+      } else if (_order == 'date_desc') {
+        return b.publicationDate.compareTo(a.publicationDate);
+      } else {
+        final diff = b.averagePublicScore - a.averagePublicScore;
+        return diff < 0 ? -1 : diff > 0 ? 1 : 0;
+      }
+    });
+    return copy;
+  }
+
   Future<void> _load({bool reset = false}) async {
     if (reset) _currentPage = 1;
     setState(() { _isLoading = true; _errorMessage = null; });
@@ -69,12 +87,14 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.eventName, style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(widget.eventName,
+            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
         backgroundColor: Colors.transparent,
+        iconTheme: const IconThemeData(color: Colors.white),
         flexibleSpace: Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
-              colors: [Color(0xFFD32F2F), Color(0xFF7F0000)],
+              colors: [Color(0xFFC2185B), Color(0xFF7B1FA2)],
               begin: Alignment.centerLeft,
               end: Alignment.centerRight,
             ),
@@ -135,13 +155,13 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: const Color(0xFFB71C1C).withValues(alpha: 0.10),
+              color: const Color(0xFFC2185B).withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
               '${_projects.length} proyectos',
               style: const TextStyle(
-                color: Color(0xFFB71C1C),
+                color: Color(0xFFC2185B),
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
               ),
@@ -151,7 +171,7 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
           DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: _order,
-              icon: const Icon(Icons.sort_rounded, size: 18, color: Color(0xFFB71C1C)),
+              icon: const Icon(Icons.sort_rounded, size: 18, color: Color(0xFFC2185B)),
               style: const TextStyle(fontSize: 13, color: Colors.black87),
               items: const [
                 DropdownMenuItem(value: 'score_desc', child: Text('Mayor puntaje')),
@@ -160,7 +180,8 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
                 DropdownMenuItem(value: 'date_asc', child: Text('Más antiguos')),
               ],
               onChanged: (val) {
-                if (val != null) setState(() => _order = val);
+                if (val == null) return;
+                setState(() => _order = val);
                 _load(reset: true);
               },
             ),
@@ -172,7 +193,7 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
 
   Widget _buildList() {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator(color: Color(0xFFB71C1C)));
+      return const Center(child: CircularProgressIndicator(color: Color(0xFFC2185B)));
     }
     if (_errorMessage != null) {
       return Center(
@@ -185,7 +206,7 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
             const SizedBox(height: 16),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFB71C1C), foregroundColor: Colors.white),
+                  backgroundColor: const Color(0xFFC2185B), foregroundColor: Colors.white),
               onPressed: () => _load(),
               child: const Text('Reintentar'),
             ),
@@ -206,13 +227,16 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
         ),
       );
     }
+    final items = _displayedProjects;
     return RefreshIndicator(
-      color: const Color(0xFFB71C1C),
+      color: const Color(0xFFC2185B),
       onRefresh: () => _load(),
-      child: ListView.builder(
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-        itemCount: _projects.length,
-        itemBuilder: (context, index) => _buildProjectCard(_projects[index]),
+        child: Column(
+          children: items.map((p) => _buildProjectCard(p)).toList(),
+        ),
       ),
     );
   }
@@ -222,7 +246,7 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
     return Card(
       margin: const EdgeInsets.only(bottom: 14),
       elevation: 3,
-      shadowColor: courseColor.withValues(alpha: 0.18),
+      shadowColor: const Color(0xFFC2185B).withValues(alpha: 0.18),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
@@ -242,16 +266,15 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
         child: IntrinsicHeight(
           child: Row(
             children: [
-              // Borde gradiente por materia
               Container(
                 width: 7,
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [courseColor, courseColor.withValues(alpha: 0.5)],
+                    colors: [Color(0xFFC2185B), Color(0xFF7B1FA2)],
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                   ),
-                  borderRadius: const BorderRadius.only(
+                  borderRadius: BorderRadius.only(
                     topLeft: Radius.circular(16),
                     bottomLeft: Radius.circular(16),
                   ),
@@ -339,20 +362,91 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
                           ),
                         ),
                       const SizedBox(height: 8),
-                      _buildStars(project.averagePublicScore),
+                      Row(
+                        children: [
+                          _buildStars(project.averagePublicScore),
+                          const Spacer(),
+                          if (project.state != null)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: project.isActive
+                                    ? Colors.green.withValues(alpha: 0.12)
+                                    : Colors.red.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    width: 6, height: 6,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: project.isActive ? Colors.green[600] : Colors.red[600],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    project.isActive ? 'Activo' : 'Inactivo',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                      color: project.isActive ? Colors.green[700] : Colors.red[700],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: Icon(Icons.arrow_forward_ios_rounded, size: 14,
-                    color: courseColor.withValues(alpha: 0.5)),
-              ),
+              _buildThumbnail(project.mainImage, courseColor),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildThumbnail(String? imageUrl, Color courseColor) {
+    return Container(
+      width: 80,
+      height: 80,
+      margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color: courseColor.withValues(alpha: 0.08),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: imageUrl != null && imageUrl.isNotEmpty
+          ? Image.network(
+              imageUrl,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => Icon(
+                Icons.image_outlined,
+                color: courseColor.withValues(alpha: 0.4),
+                size: 32,
+              ),
+              loadingBuilder: (_, child, progress) => progress == null
+                  ? child
+                  : Center(
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: courseColor,
+                        value: progress.expectedTotalBytes != null
+                            ? progress.cumulativeBytesLoaded / progress.expectedTotalBytes!
+                            : null,
+                      ),
+                    ),
+            )
+          : Icon(
+              Icons.folder_outlined,
+              color: courseColor.withValues(alpha: 0.4),
+              size: 32,
+            ),
     );
   }
 

@@ -70,22 +70,31 @@ class _RoleRequestsScreenState extends State<RoleRequestsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: const Color(0xFFB71C1C),
+        backgroundColor: Colors.transparent,
         iconTheme: const IconThemeData(color: Colors.white),
         title: const Text(
           'Solicitudes de Rol',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFFC2185B), Color(0xFF7B1FA2)],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
+          ),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh, color: Colors.white),
             onPressed: _load,
             tooltip: 'Actualizar',
           ),
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFFB71C1C)))
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFFC2185B)))
           : _errorMessage != null
               ? _buildError()
               : _buildBody(),
@@ -103,7 +112,7 @@ class _RoleRequestsScreenState extends State<RoleRequestsScreen> {
           const SizedBox(height: 16),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFB71C1C),
+                backgroundColor: const Color(0xFFC2185B),
                 foregroundColor: Colors.white),
             onPressed: _load,
             child: const Text('Reintentar'),
@@ -132,7 +141,7 @@ class _RoleRequestsScreenState extends State<RoleRequestsScreen> {
     }
 
     return RefreshIndicator(
-      color: const Color(0xFFB71C1C),
+      color: const Color(0xFFC2185B),
       onRefresh: _load,
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
@@ -157,20 +166,36 @@ class _RoleRequestsScreenState extends State<RoleRequestsScreen> {
             // Header: avatar + info
             Row(
               children: [
-                CircleAvatar(
-                  radius: 22,
-                  backgroundColor:
-                      const Color(0xFFB71C1C).withValues(alpha: 0.1),
-                  child: Text(
-                    req.userName.isNotEmpty
-                        ? req.userName[0].toUpperCase()
-                        : req.userEmail.isNotEmpty
-                            ? req.userEmail[0].toUpperCase()
-                            : '?',
-                    style: const TextStyle(
-                        color: Color(0xFFB71C1C),
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18),
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFC2185B), Color(0xFF7B1FA2)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFC2185B).withValues(alpha: 0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Text(
+                      req.userName.isNotEmpty
+                          ? req.userName[0].toUpperCase()
+                          : req.userEmail.isNotEmpty
+                              ? req.userEmail[0].toUpperCase()
+                              : '?',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -199,13 +224,13 @@ class _RoleRequestsScreenState extends State<RoleRequestsScreen> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFB71C1C).withValues(alpha: 0.1),
+                    color: const Color(0xFFC2185B).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
                     roleLabel,
                     style: const TextStyle(
-                        color: Color(0xFFB71C1C),
+                        color: Color(0xFFC2185B),
                         fontWeight: FontWeight.w600,
                         fontSize: 12),
                   ),
@@ -220,7 +245,7 @@ class _RoleRequestsScreenState extends State<RoleRequestsScreen> {
                       width: 24,
                       height: 24,
                       child: CircularProgressIndicator(
-                          color: Color(0xFFB71C1C), strokeWidth: 2)))
+                          color: Color(0xFFC2185B), strokeWidth: 2)))
             else
               Row(
                 children: [

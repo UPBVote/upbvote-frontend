@@ -2,13 +2,18 @@ import 'package:flutter/material.dart';
 import '../../core/app_state.dart';
 import '../../core/api_client.dart';
 import '../../models/event_models.dart';
+import '../../models/project_models.dart';
 import '../../services/event_service.dart';
+import '../../services/project_service.dart';
+import '../../services/notification_service.dart';
 import 'login_screen.dart';
 import 'profile_screen.dart';
 import 'project_list_screen.dart';
+import 'project_detail_screen.dart';
 import 'my_projects_screen.dart';
 import 'manage_event_screen.dart';
 import 'role_requests_screen.dart';
+import 'users_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final String userRole;
@@ -20,9 +25,39 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
+
+  // Events tab
   List<EventSummary> _events = [];
   bool _isLoading = true;
   String? _errorMessage;
+
+  // Projects tab (todos los roles)
+  final _projectSearchCtrl = TextEditingController();
+  List<ProjectSummary> _projects = [];
+  bool _projectsLoading = false;
+  bool _projectsInitialized = false;
+  String? _projectsError;
+  int _projectsPage = 1;
+  int _projectsTotalPages = 1;
+  String _projectsOrder = 'score_desc';
+
+  List<ProjectSummary> get _sortedProjects {
+    final copy = List<ProjectSummary>.from(_projects);
+    copy.sort((a, b) {
+      if (_projectsOrder == 'score_asc') {
+        final diff = a.averagePublicScore - b.averagePublicScore;
+        return diff < 0 ? -1 : diff > 0 ? 1 : 0;
+      } else if (_projectsOrder == 'date_asc') {
+        return a.publicationDate.compareTo(b.publicationDate);
+      } else if (_projectsOrder == 'date_desc') {
+        return b.publicationDate.compareTo(a.publicationDate);
+      } else {
+        final diff = b.averagePublicScore - a.averagePublicScore;
+        return diff < 0 ? -1 : diff > 0 ? 1 : 0;
+      }
+    });
+    return copy;
+  }
 
   @override
   void initState() {
@@ -30,10 +65,16 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadEvents();
   }
 
+  @override
+  void dispose() {
+    _projectSearchCtrl.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadEvents() async {
     setState(() { _isLoading = true; _errorMessage = null; });
     try {
-      final events = widget.userRole == 'Secretario'
+      final events = (widget.userRole == 'Secretario' || widget.userRole == 'Admin')
           ? await EventService.getEvents()
           : await EventService.getActiveEvents();
       setState(() => _events = events);
@@ -46,8 +87,33 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _logout() {
+  Future<void> _loadProjects({bool reset = false}) async {
+    if (reset) _projectsPage = 1;
+    setState(() { _projectsLoading = true; _projectsError = null; _projectsInitialized = true; });
+    try {
+      final result = await ProjectService.getProjects(
+        page: _projectsPage,
+        search: _projectSearchCtrl.text.trim(),
+        order: _projectsOrder,
+      );
+      setState(() {
+        _projects = result.data;
+        _projectsTotalPages = result.totalPages;
+        _projectsPage = result.currentPage;
+      });
+    } on ApiException catch (e) {
+      setState(() => _projectsError = e.message);
+    } catch (_) {
+      setState(() => _projectsError = 'Error de conexión.');
+    } finally {
+      if (mounted) setState(() => _projectsLoading = false);
+    }
+  }
+
+  Future<void> _logout() async {
+    await NotificationService.deactivateToken();
     AppState.clear();
+    if (!mounted) return;
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (_) => const LoginScreen()),
@@ -57,78 +123,28 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _onNavTap(int index) {
     final itemCount = _navItems().length;
+    // Perfil siempre es el último tab
     if (index == itemCount - 1) {
       Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
       return;
     }
-    if (index == 1 && widget.userRole == 'Expositor') {
+    // Expositor: tab 2 = Mi Proyecto → navega a MyProjectsScreen
+    if (index == 2 && widget.userRole == 'Expositor') {
       Navigator.push(context, MaterialPageRoute(builder: (_) => const MyProjectsScreen()));
       return;
     }
-    if (index == 1 && (widget.userRole == 'Jurado' || widget.userRole == 'Secretario')) {
-      _showResultsEventPicker();
-      return;
+    // Tab 1 = Proyectos — cargar si es primera visita
+    if (index == 1 && !_projectsInitialized) {
+      _loadProjects();
     }
     setState(() => _selectedIndex = index);
   }
 
-  void _showResultsEventPicker() {
-    if (_events.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No hay eventos disponibles')),
-      );
-      return;
-    }
-    if (_events.length == 1) {
-      Navigator.push(context, MaterialPageRoute(
-        builder: (_) => ProjectListScreen(
-          userRole: widget.userRole,
-          eventId: _events.first.id,
-          eventName: _events.first.name,
-        ),
-      ));
-      return;
-    }
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(20, 20, 20, 8),
-            child: Text('Selecciona un evento',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          ),
-          const Divider(),
-          ..._events.map((e) => ListTile(
-            leading: const Icon(Icons.event, color: Color(0xFFB71C1C)),
-            title: Text(e.name),
-            onTap: () {
-              Navigator.pop(ctx);
-              Navigator.push(context, MaterialPageRoute(
-                builder: (_) => ProjectListScreen(
-                  userRole: widget.userRole,
-                  eventId: e.id,
-                  eventName: e.name,
-                ),
-              ));
-            },
-          )),
-          const SizedBox(height: 12),
-        ],
-      ),
-    );
-  }
-
   List<BottomNavigationBarItem> _navItems() => [
     const BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Eventos'),
+    const BottomNavigationBarItem(icon: Icon(Icons.folder_open_rounded), label: 'Proyectos'),
     if (widget.userRole == 'Expositor')
       const BottomNavigationBarItem(icon: Icon(Icons.add_circle), label: 'Mi Proyecto'),
-    if (widget.userRole == 'Jurado' || widget.userRole == 'Secretario')
-      const BottomNavigationBarItem(icon: Icon(Icons.analytics), label: 'Resultados'),
     const BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Perfil'),
   ];
 
@@ -141,7 +157,7 @@ class _HomeScreenState extends State<HomeScreen> {
         flexibleSpace: Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
-              colors: [Color(0xFFD32F2F), Color(0xFF7F0000)],
+              colors: [Color(0xFFC2185B), Color(0xFF7B1FA2)],
               begin: Alignment.centerLeft,
               end: Alignment.centerRight,
             ),
@@ -149,8 +165,26 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         actions: [
           IconButton(
+            icon: const Icon(Icons.notifications_outlined, color: Colors.white),
+            tooltip: 'Notificaciones',
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('No tienes notificaciones nuevas.'),
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _loadEvents,
+            onPressed: () {
+              if (_selectedIndex == 1) {
+                _loadProjects(reset: true);
+              } else {
+                _loadEvents();
+              }
+            },
             tooltip: 'Actualizar',
           ),
         ],
@@ -159,7 +193,7 @@ class _HomeScreenState extends State<HomeScreen> {
       body: _buildBody(),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
-        selectedItemColor: const Color(0xFFB71C1C),
+        selectedItemColor: const Color(0xFFC2185B),
         unselectedItemColor: Colors.grey,
         onTap: _onNavTap,
         items: _navItems(),
@@ -174,7 +208,7 @@ class _HomeScreenState extends State<HomeScreen> {
           UserAccountsDrawerHeader(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
-                colors: [Color(0xFFB71C1C), Color(0xFF7F0000)],
+                colors: [Color(0xFFC2185B), Color(0xFF7B1FA2)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -191,7 +225,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ? AppState.userName![0].toUpperCase()
                     : 'U',
                 style: const TextStyle(
-                  color: Color(0xFFB71C1C),
+                  color: Color(0xFFC2185B),
                   fontWeight: FontWeight.bold,
                   fontSize: 22,
                 ),
@@ -206,11 +240,11 @@ class _HomeScreenState extends State<HomeScreen> {
               Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
             },
           ),
-          if (widget.userRole == 'Secretario') ...[
+          if (widget.userRole == 'Secretario' || widget.userRole == 'Admin') ...[
             const Divider(),
             ListTile(
-              leading: const Icon(Icons.event, color: Color(0xFFB71C1C)),
-              title: const Text('Gestionar Eventos'),
+              leading: const Icon(Icons.event, color: Color(0xFFC2185B)),
+              title: const Text('Crear Evento'),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(
@@ -224,7 +258,7 @@ class _HomeScreenState extends State<HomeScreen> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.assignment_ind, color: Color(0xFFB71C1C)),
+              leading: const Icon(Icons.assignment_ind, color: Color(0xFFC2185B)),
               title: const Text('Solicitudes de Rol'),
               onTap: () {
                 Navigator.pop(context);
@@ -233,6 +267,17 @@ class _HomeScreenState extends State<HomeScreen> {
                   MaterialPageRoute(
                     builder: (_) => const RoleRequestsScreen(),
                   ),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.people, color: Color(0xFFC2185B)),
+              title: const Text('Usuarios'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const UsersScreen()),
                 );
               },
             ),
@@ -250,8 +295,17 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildBody() {
+    if (_selectedIndex == 1) {
+      return _buildProjectsTab();
+    }
+    return _buildEventsTab();
+  }
+
+  // ─── Events Tab ────────────────────────────────────────────────────────────
+
+  Widget _buildEventsTab() {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator(color: Color(0xFFB71C1C)));
+      return const Center(child: CircularProgressIndicator(color: Color(0xFFC2185B)));
     }
     if (_errorMessage != null) {
       return Center(
@@ -266,7 +320,7 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 20),
               ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFB71C1C),
+                  backgroundColor: const Color(0xFFC2185B),
                   foregroundColor: Colors.white,
                 ),
                 icon: const Icon(Icons.refresh),
@@ -294,7 +348,7 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
     return RefreshIndicator(
-      color: const Color(0xFFB71C1C),
+      color: const Color(0xFFC2185B),
       onRefresh: _loadEvents,
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
@@ -306,9 +360,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildEventCard(EventSummary event) {
     final statusInfo = _statusInfo(event.status.description);
-    return Card(
+    final isClosed = event.status.description.toUpperCase() == 'CLOSED';
+    return Opacity(
+      opacity: isClosed ? 0.6 : 1.0,
+      child: Card(
       margin: const EdgeInsets.only(bottom: 16),
-      elevation: 4,
+      elevation: isClosed ? 1 : 4,
       shadowColor: statusInfo.$1.withValues(alpha: 0.25),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: InkWell(
@@ -405,6 +462,24 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
               ),
+              if (widget.userRole == 'Secretario' || widget.userRole == 'Admin')
+                GestureDetector(
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ManageEventScreen(event: event),
+                    ),
+                  ).then((updated) { if (updated == true) _loadEvents(); }),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    margin: const EdgeInsets.only(right: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.blue[50],
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(Icons.edit_outlined, size: 16, color: Colors.blue[700]),
+                  ),
+                ),
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
@@ -417,23 +492,352 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ),
+    ),
     );
   }
 
-  /// Retorna (color, label) según el status del evento
+  // ─── Projects Tab (Votante) ─────────────────────────────────────────────────
+
+  Widget _buildProjectsTab() {
+    return Column(
+      children: [
+        _buildProjectSearchBar(),
+        _buildProjectSortBar(),
+        Expanded(child: _buildProjectList()),
+        if (_projectsTotalPages > 1) _buildProjectPagination(),
+      ],
+    );
+  }
+
+  Widget _buildProjectSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: TextField(
+        controller: _projectSearchCtrl,
+        decoration: InputDecoration(
+          hintText: 'Buscar proyecto, materia o integrante...',
+          prefixIcon: const Icon(Icons.search),
+          suffixIcon: _projectSearchCtrl.text.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.clear),
+                  onPressed: () {
+                    _projectSearchCtrl.clear();
+                    _loadProjects(reset: true);
+                  },
+                )
+              : null,
+          filled: true,
+          fillColor: Colors.grey[100],
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(30),
+            borderSide: BorderSide.none,
+          ),
+          contentPadding: const EdgeInsets.symmetric(vertical: 0),
+        ),
+        onSubmitted: (_) => _loadProjects(reset: true),
+      ),
+    );
+  }
+
+  Widget _buildProjectSortBar() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFFC2185B).withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              '${_projects.length} proyectos',
+              style: const TextStyle(
+                color: Color(0xFFC2185B),
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const Spacer(),
+          DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: _projectsOrder,
+              icon: const Icon(Icons.sort_rounded, size: 18, color: Color(0xFFC2185B)),
+              style: const TextStyle(fontSize: 13, color: Colors.black87),
+              items: const [
+                DropdownMenuItem(value: 'score_desc', child: Text('Mayor puntaje')),
+                DropdownMenuItem(value: 'score_asc', child: Text('Menor puntaje')),
+                DropdownMenuItem(value: 'date_desc', child: Text('Más recientes')),
+                DropdownMenuItem(value: 'date_asc', child: Text('Más antiguos')),
+              ],
+              onChanged: (val) {
+                if (val != null) setState(() => _projectsOrder = val);
+                _loadProjects(reset: true);
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProjectList() {
+    if (_projectsLoading) {
+      return const Center(child: CircularProgressIndicator(color: Color(0xFFC2185B)));
+    }
+    if (_projectsError != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline, color: Colors.red, size: 48),
+            const SizedBox(height: 12),
+            Text(_projectsError!, textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFC2185B), foregroundColor: Colors.white),
+              onPressed: () => _loadProjects(),
+              child: const Text('Reintentar'),
+            ),
+          ],
+        ),
+      );
+    }
+    if (_projects.isEmpty && _projectsInitialized) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.folder_open, size: 64, color: Colors.grey[400]),
+            const SizedBox(height: 12),
+            Text('No se encontraron proyectos',
+                style: TextStyle(fontSize: 15, color: Colors.grey[600])),
+          ],
+        ),
+      );
+    }
+    return RefreshIndicator(
+      color: const Color(0xFFC2185B),
+      onRefresh: () => _loadProjects(reset: true),
+      child: ListView.builder(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+        itemCount: _sortedProjects.length,
+        itemBuilder: (context, index) => _buildProjectCard(_sortedProjects[index]),
+      ),
+    );
+  }
+
+  Widget _buildProjectCard(ProjectSummary project) {
+    final courseColor = _courseColor(project.course?.name ?? '');
+    return Card(
+      margin: const EdgeInsets.only(bottom: 14),
+      elevation: 3,
+      shadowColor: courseColor.withValues(alpha: 0.18),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () async {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ProjectDetailScreen(
+                userRole: widget.userRole,
+                projectId: project.id,
+                projectTitle: project.title,
+              ),
+            ),
+          );
+          if (mounted && _selectedIndex == 1) _loadProjects(reset: true);
+        },
+        child: IntrinsicHeight(
+          child: Row(
+            children: [
+              Container(
+                width: 7,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [courseColor, courseColor.withValues(alpha: 0.5)],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                  ),
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(16),
+                    bottomLeft: Radius.circular(16),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 14, 10, 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              project.title,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                                letterSpacing: -0.2,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [Colors.amber[600]!, Colors.amber[400]!],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.amber.withValues(alpha: 0.3),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.star_rounded, color: Colors.white, size: 13),
+                                const SizedBox(width: 3),
+                                Text(
+                                  project.averagePublicScore.toStringAsFixed(1),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      if (project.course != null)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: courseColor.withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.book_outlined, size: 12, color: courseColor),
+                              const SizedBox(width: 4),
+                              Text(
+                                project.course!.name,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: courseColor,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      const SizedBox(height: 8),
+                      _buildStars(project.averagePublicScore),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: Icon(Icons.arrow_forward_ios_rounded, size: 14,
+                    color: courseColor.withValues(alpha: 0.5)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStars(double score) {
+    final full = score.floor().clamp(0, 5);
+    final hasHalf = (score - full) >= 0.5;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(5, (i) {
+        if (i < full) return const Icon(Icons.star, color: Colors.amber, size: 16);
+        if (i == full && hasHalf) return const Icon(Icons.star_half, color: Colors.amber, size: 16);
+        return const Icon(Icons.star_border, color: Colors.amber, size: 16);
+      }),
+    );
+  }
+
+  Widget _buildProjectPagination() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.chevron_left),
+            onPressed: _projectsPage > 1
+                ? () { setState(() => _projectsPage--); _loadProjects(); }
+                : null,
+          ),
+          Text('$_projectsPage / $_projectsTotalPages',
+              style: const TextStyle(fontWeight: FontWeight.w600)),
+          IconButton(
+            icon: const Icon(Icons.chevron_right),
+            onPressed: _projectsPage < _projectsTotalPages
+                ? () { setState(() => _projectsPage++); _loadProjects(); }
+                : null,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─── Helpers ───────────────────────────────────────────────────────────────
+
   (Color, String) _statusInfo(String status) {
     switch (status.toUpperCase()) {
       case 'ACTIVE':
       case 'UPLOADING':
-        return (Colors.green[700]!, 'Activo');
+        return (Colors.green[700]!, 'Abierto');
       case 'VOTING':
         return (Colors.blue[700]!, 'En votación');
       case 'UPCOMING':
-        return (Colors.orange[700]!, 'Próximo');
+        return (Colors.orange[700]!, 'Próximamente');
       case 'CLOSED':
-        return (Colors.grey[600]!, 'Cerrado');
+        return (Colors.grey[500]!, 'Finalizado');
       default:
-        return (Colors.grey[600]!, status);
+        return (Colors.grey[500]!, status);
     }
+  }
+
+  Color _courseColor(String courseName) {
+    final colors = [
+      Colors.blue[700]!,
+      Colors.purple[700]!,
+      Colors.teal[700]!,
+      Colors.orange[700]!,
+      Colors.indigo[700]!,
+      Colors.green[700]!,
+    ];
+    if (courseName.isEmpty) return Colors.grey[400]!;
+    return colors[courseName.codeUnitAt(0) % colors.length];
   }
 }

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../core/app_state.dart';
 import '../../services/auth_service.dart';
+import '../../services/notification_service.dart';
 import '../../core/api_client.dart';
+import '../widgets/gradient_button.dart';
 import 'home_screen.dart';
 import 'register_screen.dart';
 
@@ -37,6 +39,9 @@ class _LoginScreenState extends State<LoginScreen> {
         password: _passwordController.text,
       );
 
+      // Registrar token FCM en el backend tras login exitoso
+      await NotificationService.registerToken();
+
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
@@ -66,7 +71,7 @@ class _LoginScreenState extends State<LoginScreen> {
           Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
-                colors: [Color(0xFFD32F2F), Color(0xFF7F0000)],
+                colors: [Color(0xFFC2185B), Color(0xFF7B1FA2)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomCenter,
               ),
@@ -135,20 +140,16 @@ class _LoginScreenState extends State<LoginScreen> {
                           width: 90, height: 90,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: Colors.white.withValues(alpha: 0.15),
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.35),
-                              width: 2,
-                            ),
+                            color: Colors.white,
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.15),
-                                blurRadius: 20,
-                                offset: const Offset(0, 6),
+                                color: Colors.black.withValues(alpha: 0.2),
+                                blurRadius: 24,
+                                offset: const Offset(0, 8),
                               ),
                             ],
                           ),
-                          child: const Icon(Icons.how_to_vote, size: 50, color: Colors.white),
+                          child: const Icon(Icons.how_to_vote, size: 50, color: Color(0xFFC2185B)),
                         ),
                         const SizedBox(height: 14),
                         const Text(
@@ -181,7 +182,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       borderRadius: BorderRadius.circular(24),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFFB71C1C).withValues(alpha: 0.12),
+                          color: const Color(0xFFC2185B).withValues(alpha: 0.12),
                           blurRadius: 28,
                           offset: const Offset(0, 8),
                         ),
@@ -206,9 +207,22 @@ class _LoginScreenState extends State<LoginScreen> {
                           keyboardType: TextInputType.emailAddress,
                           decoration: InputDecoration(
                             labelText: 'Correo',
-                            prefixIcon: const Icon(Icons.email_outlined),
+                            prefixIcon: const Icon(Icons.email_outlined,
+                                color: Color(0xFFC2185B), size: 20),
+                            filled: true,
+                            fillColor: Colors.grey[50],
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Colors.grey[200]!),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Colors.grey[200]!),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                  color: Color(0xFFC2185B), width: 1.5),
                             ),
                           ),
                         ),
@@ -219,9 +233,22 @@ class _LoginScreenState extends State<LoginScreen> {
                           obscureText: true,
                           decoration: InputDecoration(
                             labelText: 'Contraseña',
-                            prefixIcon: const Icon(Icons.lock_outline),
+                            prefixIcon: const Icon(Icons.lock_outline,
+                                color: Color(0xFFC2185B), size: 20),
+                            filled: true,
+                            fillColor: Colors.grey[50],
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Colors.grey[200]!),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Colors.grey[200]!),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                  color: Color(0xFFC2185B), width: 1.5),
                             ),
                           ),
                           onSubmitted: (_) => _login(),
@@ -253,37 +280,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
                         const SizedBox(height: 24),
 
-                        SizedBox(
-                          width: double.infinity,
+                        GradientButton(
+                          label: 'INICIAR SESIÓN',
+                          onPressed: _login,
+                          isLoading: _isLoading,
                           height: 52,
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFB71C1C),
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              elevation: 2,
-                            ),
-                            onPressed: _isLoading ? null : _login,
-                            child: _isLoading
-                                ? const SizedBox(
-                                    width: 22,
-                                    height: 22,
-                                    child: CircularProgressIndicator(
-                                      color: Colors.white,
-                                      strokeWidth: 2.5,
-                                    ),
-                                  )
-                                : const Text(
-                                    'INICIAR SESIÓN',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 15,
-                                      letterSpacing: 0.8,
-                                    ),
-                                  ),
-                          ),
+                          icon: Icons.login_rounded,
                         ),
                       ],
                     ),
@@ -304,7 +306,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           TextSpan(
                             text: 'Regístrate',
                             style: TextStyle(
-                              color: Color(0xFFB71C1C),
+                              color: Color(0xFFC2185B),
                               fontWeight: FontWeight.bold,
                             ),
                           ),

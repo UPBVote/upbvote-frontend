@@ -4,13 +4,28 @@ import '../models/project_models.dart';
 class ProjectService {
   /// GET /courses/
   static Future<List<ProjectCourse>> getCourses() async {
-    final data = await ApiClient.get('/courses/');
-    final list = data is Map
-        ? (data['data'] ?? data['results'] ?? [])
-        : (data is List ? data : []);
-    return (list as List)
-        .map((e) => ProjectCourse.fromJson(e as Map<String, dynamic>))
-        .toList();
+    return [
+      ProjectCourse(
+        id: 'd9a2b6a6-bb07-4dd1-9b08-5c559dc9bc55',
+        name: 'Bases de Datos',
+      ),
+      ProjectCourse(
+        id: '9848e059-d4a5-43c2-a525-4aae113048a9',
+        name: 'Proyecto Integrado 1',
+      ),
+      ProjectCourse(
+        id: '792ea6df-fe0b-4a0f-be8d-1902015ef08c',
+        name: 'Estructuras de Datos',
+      ),
+      ProjectCourse(
+        id: 'c6482d6a-d1e5-4f16-8f31-a02adcb84147',
+        name: 'Sistemas Distribuidos',
+      ),
+      ProjectCourse(
+        id: 'd8cfffdd-783a-4849-afb9-79070f9c2232',
+        name: 'Programación Orientada a Objetos',
+      ),
+    ];
   }
 
   /// POST /projects/
@@ -21,17 +36,13 @@ class ProjectService {
     required String workingGroupId,
     required String eventId,
   }) async {
-    final data = await ApiClient.post(
-      '/projects/',
-      {
-        'title': title,
-        'description': description,
-        'courseId': courseId,
-        'workingGroupId': workingGroupId,
-        'eventId': eventId,
-      },
-      requiresAuth: true,
-    );
+    final data = await ApiClient.post('/projects/', {
+      'title': title,
+      'description': description,
+      'courseId': courseId,
+      'workingGroupId': workingGroupId,
+      'eventId': eventId,
+    }, requiresAuth: true);
     return ProjectDetail.fromJson(data as Map<String, dynamic>);
   }
 
@@ -60,13 +71,37 @@ class ProjectService {
   /// GET /projects/{id}/content/
   static Future<ProjectContent> getProjectContent(String projectId) async {
     final data = await ApiClient.get('/projects/$projectId/content/');
-    return ProjectContent.fromJson(data as Map<String, dynamic>);
+    final content = ProjectContent.fromJson(data as Map<String, dynamic>);
+
+    // Fetch presigned URLs for each file in parallel
+    final filesWithUrls = await Future.wait(
+      content.files.map((file) async {
+        try {
+          final fileData = await ApiClient.get('/projects/$projectId/content/files/${file.id}/');
+          final url = (fileData is Map) ? (fileData['url'] ?? '').toString() : '';
+          return ProjectFile(
+            id: file.id,
+            fileName: file.fileName,
+            size: file.size,
+            contentType: file.contentType,
+            createdAt: file.createdAt,
+            url: url,
+          );
+        } catch (_) {
+          return file;
+        }
+      }),
+    );
+
+    return ProjectContent(files: filesWithUrls, links: content.links);
   }
 
   /// POST /projects/{id}/content/files/  (multipart)
   static Future<void> uploadFile({
     required String projectId,
-    required String filePath,
+    String? filePath,
+    List<int>? fileBytes,
+    String? fileName,
     required String mimeType,
     required String contentTypeId,
   }) async {
@@ -75,6 +110,8 @@ class ProjectService {
       fields: {'contentTypeId': contentTypeId},
       fileField: 'file',
       filePath: filePath,
+      fileBytes: fileBytes,
+      fileName: fileName,
       mimeType: mimeType,
     );
   }
@@ -86,11 +123,11 @@ class ProjectService {
     required String displayName,
     required String linkTypeId,
   }) async {
-    await ApiClient.post(
-      '/projects/$projectId/content/links/',
-      {'url': url, 'displayName': displayName, 'linkTypeId': linkTypeId},
-      requiresAuth: true,
-    );
+    await ApiClient.post('/projects/$projectId/content/links/', {
+      'url': url,
+      'displayName': displayName,
+      'linkTypeId': linkTypeId,
+    }, requiresAuth: true);
   }
 
   /// DELETE /projects/{id}/content/files/{contentId}/
@@ -111,7 +148,8 @@ class ProjectService {
     String? eventId,
   }) async {
     final params = <String>['page=$page'];
-    if (search != null && search.isNotEmpty) params.add('search=${Uri.encodeComponent(search)}');
+    if (search != null && search.isNotEmpty)
+      params.add('search=${Uri.encodeComponent(search)}');
     if (order != null && order.isNotEmpty) params.add('order=$order');
     if (eventId != null && eventId.isNotEmpty) params.add('event=$eventId');
 

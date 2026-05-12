@@ -3,6 +3,7 @@ import '../../core/app_state.dart';
 import '../../core/api_client.dart';
 import '../../models/profile_models.dart';
 import '../../services/profile_service.dart';
+import '../../services/role_request_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -15,6 +16,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   UserProfile? _profile;
   bool _isLoading = true;
   String? _errorMessage;
+  bool _requestingRole = false;
 
   @override
   void initState() {
@@ -39,6 +41,127 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _requestExpositorRole() async {
+    final namesCtrl = TextEditingController();
+    final lastNamesCtrl = TextEditingController();
+    final studentIDCtrl = TextEditingController();
+    String? gender;
+    DateTime? birthDate;
+    final formKey = GlobalKey<FormState>();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlg) => AlertDialog(
+          title: const Text('Solicitar rol de Expositor'),
+          content: SingleChildScrollView(
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: namesCtrl,
+                    decoration: const InputDecoration(labelText: 'Nombres *'),
+                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Requerido' : null,
+                  ),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: lastNamesCtrl,
+                    decoration: const InputDecoration(labelText: 'Apellidos *'),
+                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Requerido' : null,
+                  ),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: studentIDCtrl,
+                    decoration: const InputDecoration(labelText: 'Código de estudiante *'),
+                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Requerido' : null,
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    decoration: const InputDecoration(labelText: 'Género *'),
+                    value: gender,
+                    items: const [
+                      DropdownMenuItem(value: 'M', child: Text('Masculino')),
+                      DropdownMenuItem(value: 'F', child: Text('Femenino')),
+                      DropdownMenuItem(value: 'O', child: Text('Otro')),
+                    ],
+                    onChanged: (v) => setDlg(() => gender = v),
+                    validator: (v) => v == null ? 'Requerido' : null,
+                  ),
+                  const SizedBox(height: 8),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(birthDate == null
+                        ? 'Fecha de nacimiento *'
+                        : 'Nacimiento: ${birthDate!.day}/${birthDate!.month}/${birthDate!.year}'),
+                    trailing: const Icon(Icons.calendar_today),
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: ctx,
+                        initialDate: DateTime(2000),
+                        firstDate: DateTime(1950),
+                        lastDate: DateTime.now(),
+                      );
+                      if (picked != null) setDlg(() => birthDate = picked);
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (formKey.currentState!.validate() && birthDate != null) {
+                  Navigator.pop(ctx, true);
+                } else if (birthDate == null) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(content: Text('Selecciona tu fecha de nacimiento')),
+                  );
+                }
+              },
+              child: const Text('Enviar'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _requestingRole = true);
+    try {
+      await RoleRequestService.createRequest({
+        'names': namesCtrl.text.trim(),
+        'lastNames': lastNamesCtrl.text.trim(),
+        'studentID': studentIDCtrl.text.trim(),
+        'gender': gender!,
+        'birthDate': '${birthDate!.year}-${birthDate!.month.toString().padLeft(2, '0')}-${birthDate!.day.toString().padLeft(2, '0')}',
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Solicitud enviada. Un secretario la revisará pronto.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _requestingRole = false);
+    }
+  }
+
   String _getInitials() {
     final p = _profile;
     if (p?.names != null && p!.names!.isNotEmpty) {
@@ -59,10 +182,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Color _roleColor(String role) {
     switch (role) {
-      case 'Expositor':  return Colors.blue[700]!;
-      case 'Jurado':     return Colors.orange[700]!;
-      case 'Secretario': return Colors.green[700]!;
-      default:           return const Color(0xFFB71C1C);
+      case 'Expositor':  return const Color(0xFF1565C0);
+      case 'Jurado':     return const Color(0xFF7B1FA2);
+      case 'Secretario': return const Color(0xFF2E7D32);
+      case 'Admin':      return const Color(0xFFC2185B);
+      default:           return const Color(0xFFC2185B);
     }
   }
 
@@ -70,7 +194,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFFB71C1C)))
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFFC2185B)))
           : _errorMessage != null
               ? _buildError()
               : _buildContent(),
@@ -92,7 +216,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 20),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFB71C1C),
+                  backgroundColor: const Color(0xFFC2185B),
                   foregroundColor: Colors.white,
                 ),
                 onPressed: _loadProfile,
@@ -115,7 +239,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         SliverAppBar(
           expandedHeight: 220,
           pinned: true,
-          backgroundColor: const Color(0xFFB71C1C),
+          backgroundColor: const Color(0xFFC2185B),
           iconTheme: const IconThemeData(color: Colors.white),
           title: const Text(
             'Mi Perfil',
@@ -124,17 +248,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
           flexibleSpace: FlexibleSpaceBar(
             background: Stack(
               children: [
-                // Fondo degradado
                 Container(
                   decoration: const BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [Color(0xFFB71C1C), Color(0xFF7F0000)],
+                      colors: [Color(0xFFC2185B), Color(0xFF7B1FA2)],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
                   ),
                 ),
-                // Avatar + nombre centrados
                 Positioned(
                   bottom: 24,
                   left: 0,
@@ -147,7 +269,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         child: Text(
                           _getInitials(),
                           style: const TextStyle(
-                            color: Color(0xFFB71C1C),
+                            color: Color(0xFFC2185B),
                             fontSize: 30,
                             fontWeight: FontWeight.bold,
                           ),
@@ -176,20 +298,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
             child: Column(
               children: [
-                // Badge de rol
+                // Badge de rol con gradiente
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 7),
                   decoration: BoxDecoration(
-                    color: roleColor.withValues(alpha: 0.10),
+                    gradient: LinearGradient(
+                      colors: [roleColor, roleColor.withValues(alpha: 0.75)],
+                    ),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: roleColor),
+                    boxShadow: [
+                      BoxShadow(
+                        color: roleColor.withValues(alpha: 0.30),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
                   ),
                   child: Text(
                     role,
-                    style: TextStyle(
-                      color: roleColor,
+                    style: const TextStyle(
+                      color: Colors.white,
                       fontWeight: FontWeight.bold,
                       fontSize: 13,
+                      letterSpacing: 0.5,
                     ),
                   ),
                 ),
@@ -216,6 +347,55 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                 ),
+
+                if (role == 'Votante') ...[
+                  const SizedBox(height: 16),
+                  Card(
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Quiero ser Expositor',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Solicita el rol de Expositor para poder subir y presentar proyectos en las jornadas.',
+                            style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                          ),
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFC2185B),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10)),
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                              ),
+                              icon: _requestingRole
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                          color: Colors.white, strokeWidth: 2))
+                                  : const Icon(Icons.upload_outlined, size: 18),
+                              label: Text(_requestingRole
+                                  ? 'Enviando solicitud...'
+                                  : 'Solicitar rol de Expositor'),
+                              onPressed: _requestingRole ? null : _requestExpositorRole,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -254,7 +434,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       padding: const EdgeInsets.symmetric(vertical: 9),
       child: Row(
         children: [
-          Icon(icon, size: 20, color: const Color(0xFFB71C1C)),
+          Icon(icon, size: 20, color: const Color(0xFFC2185B)),
           const SizedBox(width: 14),
           Expanded(
             child: Column(

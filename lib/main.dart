@@ -1,8 +1,11 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'ui/screens/login_screen.dart';
+import 'services/notification_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await NotificationService.init();
   // 1) Errores dentro de callbacks de Flutter (build, layout, paint)
   FlutterError.onError = (details) {
     if (details.exceptionAsString().contains('_dependents.isEmpty')) return;
@@ -33,14 +36,14 @@ class UPBVoteApp extends StatelessWidget {
       title: 'UPBVote',
       theme: ThemeData(
         useMaterial3: true,
-        primaryColor: const Color(0xFFB71C1C),
+        primaryColor: const Color(0xFFC2185B),
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFB71C1C),
-          primary: const Color(0xFFB71C1C),
-          secondary: const Color(0xFF263238),
+          seedColor: const Color(0xFFC2185B),
+          primary: const Color(0xFFC2185B),
+          secondary: const Color(0xFF7B1FA2),
         ),
         appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFFB71C1C),
+          backgroundColor: Color(0xFFC2185B),
           foregroundColor: Colors.white,
           centerTitle: true,
           elevation: 0,
@@ -54,6 +57,7 @@ class UPBVoteApp extends StatelessWidget {
         bottomNavigationBarTheme: const BottomNavigationBarThemeData(
           elevation: 14,
           backgroundColor: Colors.white,
+          selectedItemColor: Color(0xFFC2185B),
           selectedLabelStyle: TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
           unselectedLabelStyle: TextStyle(fontSize: 11),
         ),

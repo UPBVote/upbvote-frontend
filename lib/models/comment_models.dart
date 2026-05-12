@@ -16,6 +16,7 @@ class Comment {
   final String dateTime;
   final CommentType commentType;
   final String? userId;
+  final String? userName;
 
   Comment({
     required this.id,
@@ -23,6 +24,7 @@ class Comment {
     required this.dateTime,
     required this.commentType,
     this.userId,
+    this.userName,
   });
 
   bool get isAnonymous => commentType.name == 'ANONYMOUS';
@@ -35,5 +37,8 @@ class Comment {
             ? CommentType.fromJson(j['commentType'] as Map<String, dynamic>)
             : CommentType(id: '', name: ''),
         userId: j['userId']?.toString(),
+        userName: j['userName']?.toString() ??
+            j['user_name']?.toString() ??
+            j['author']?.toString(),
       );
 }
